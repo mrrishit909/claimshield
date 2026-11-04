@@ -1,0 +1,16 @@
+{
+  "name": "claimshield",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ClaimShield: bounded, deterministic preflight of SYNTHETIC claim batches against the fictional CS-DEMO-1 rule pack. Not a payer, coverage or clinical determination tool.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.js\"",
+    "serve": "node scripts/serve.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
