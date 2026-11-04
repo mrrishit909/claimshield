@@ -94,7 +94,9 @@ test('export roundtrip: stringify, reparse, findings and summary deep-equal the 
   assert.equal(back.generatedAt, FIXED_TIME);
   assert.equal(back.sourceHash, hash);
   assert.match(hash, /^[0-9a-f]{64}$/);
-  assert.match(back.dataLabel, /SYNTHETIC DEMO DATA/);
+  assert.equal(back.exportVersion, 2);
+  assert.match(back.dataLabel, /^UNVERIFIED USER-SUPPLIED DATA/, 'analyze(text) is never synthetic');
+  assert.equal(back.provenance.kind, 'unverified-user-supplied');
   assert.deepEqual(back.review, { notes: { 'CS02:C-2': 'Auth belongs to M-1.' }, decisions: { 'CS02:C-2': 'confirmed' } });
   assert.equal(JSON.stringify(report.findings), JSON.stringify(evaluate(golden).report.findings), 'export did not alter the report');
 });
@@ -134,7 +136,7 @@ test('csv: RFC 4180 quoting and formula neutralization', () => {
   const { report } = evaluate(golden);
   const csv = toCsv(report, { notes: { 'CS01:C-3': '=HYPERLINK("x")' } });
   const lines = csv.split('\r\n');
-  assert.equal(lines[0], '"findingId","ruleId","ruleVersion","claimIds","reason","message","decision","note","dataLabel"');
+  assert.equal(lines[0], '"findingId","ruleId","ruleVersion","claimIds","reason","message","decision","note","dataLabel","provenance","fixtureKey"');
   assert.equal(lines.length, 7, 'header + 5 findings + trailing CRLF');
   assert.ok(lines[1].startsWith('"CS01:C-3","CS01","CS-DEMO-1","C-3","member-missing"'));
   assert.ok(lines[1].includes('"\'=HYPERLINK(""x"")"'));

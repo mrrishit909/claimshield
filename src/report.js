@@ -2,10 +2,18 @@
 // Pure, isomorphic ESM. generatedAt and sourceHash are injected by callers.
 
 import { LIMITS } from './schema.js';
+import { SYNTHETIC_LABEL, provenanceOf } from './provenance.js';
 
-export const SYNTHETIC_LABEL =
-  'SYNTHETIC DEMO DATA. Every record is fictional. Not real claims, members, providers or policies. ' +
-  'Not a coverage, payment or clinical determination.';
+// Re-exported for v1 callers; it is no longer applied unconditionally.
+export { SYNTHETIC_LABEL };
+
+/**
+ * Export contract version written by buildExport / toCsv.
+ * v1: always wrote the SYNTHETIC DEMO DATA label regardless of where the data came from.
+ * v2: label chosen from provenanceOf(report) plus a `provenance` object (JSON) / columns (CSV).
+ */
+export const EXPORT_VERSION = 2;
+export const READABLE_EXPORT_VERSIONS = Object.freeze([1, 2]);
 
 export const DECISIONS = Object.freeze(['open', 'confirmed', 'dismissed', 'needs-follow-up']);
 
@@ -91,10 +99,14 @@ export function buildExport(report, { generatedAt, sourceHash = null, notes, dec
   const safeDecisions = validateReviewMap(decisions, findingIds, 'decisions', (v, k) => {
     if (!DECISIONS.includes(v)) throw new ExportError('EXPORT_INVALID_DECISION', `decision for ${k} is not allowed`);
   });
+  // Effective provenance, never the report's own (possibly forged or legacy) label fields. A parsed
+  // v1 or v2 export passed back in here is re-exported as UNVERIFIED USER-SUPPLIED DATA.
+  const provenance = provenanceOf(report);
   return {
-    exportVersion: 1,
+    exportVersion: EXPORT_VERSION,
     product: 'ClaimShield',
-    dataLabel: SYNTHETIC_LABEL,
+    dataLabel: provenance.label,
+    provenance: { ...provenance },
     schemaVersion: report.schemaVersion,
     ruleVersion: report.ruleVersion,
     rulePack: deepClone(report.rulePack),
@@ -107,11 +119,19 @@ export function buildExport(report, { generatedAt, sourceHash = null, notes, dec
   };
 }
 
-/** Parse an exported JSON text back into an object (roundtrip helper). */
+/**
+ * Parse an exported JSON text back into an object (roundtrip helper). Accepts exportVersion 1
+ * (legacy) and 2. The returned object keeps its self-declared `dataLabel` / `provenance` as plain
+ * data, but they are not trusted: provenanceOf(), buildExport() and toCsv() treat any re-read
+ * export, v1 or v2, as UNVERIFIED USER-SUPPLIED DATA.
+ */
 export function parseExport(text) {
   const parsed = JSON.parse(text);
   if (!parsed || typeof parsed !== 'object' || parsed.product !== 'ClaimShield' || !Array.isArray(parsed.findings)) {
     throw new ExportError('EXPORT_INVALID_ROUNDTRIP', 'not a ClaimShield export');
+  }
+  if (!READABLE_EXPORT_VERSIONS.includes(parsed.exportVersion)) {
+    throw new ExportError('EXPORT_UNSUPPORTED_VERSION', `exportVersion must be one of ${READABLE_EXPORT_VERSIONS.join(', ')}`);
   }
   return parsed;
 }
@@ -125,9 +145,11 @@ export function csvCell(value) {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
-export const CSV_HEADER = ['findingId', 'ruleId', 'ruleVersion', 'claimIds', 'reason', 'message', 'decision', 'note', 'dataLabel'];
+// v2 appends provenance + fixtureKey after the v1 columns, so v1 column positions are unchanged.
+export const CSV_HEADER = ['findingId', 'ruleId', 'ruleVersion', 'claimIds', 'reason', 'message', 'decision', 'note', 'dataLabel', 'provenance', 'fixtureKey'];
 
 export function toCsv(report, { notes = {}, decisions = {} } = {}) {
+  const provenance = provenanceOf(report); // same rule as buildExport: self-declared fields are ignored
   const lines = [CSV_HEADER.map(csvCell).join(',')];
   for (const f of report.findings) {
     lines.push(
@@ -140,7 +162,9 @@ export function toCsv(report, { notes = {}, decisions = {} } = {}) {
         f.message,
         decisions[f.id] ?? '',
         notes[f.id] ?? '',
-        SYNTHETIC_LABEL,
+        provenance.label,
+        provenance.kind,
+        provenance.fixtureKey ?? '',
       ]
         .map(csvCell)
         .join(','),

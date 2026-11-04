@@ -125,9 +125,9 @@
 </head>
 <body>
 <a class="skip" href="#findings-heading">Skip to findings</a>
-<div class="banner" role="note" aria-label="Synthetic data notice">
-  <strong>Synthetic demo data</strong>
-  <span>Every record is fictional. Not a coverage, payment or clinical determination. Rule pack CS-DEMO-1 is a fictional configuration sourced only from the spec file.</span>
+<div class="banner" role="note" aria-label="Data provenance notice">
+  <strong>Demo · data provenance</strong>
+  <span>Bundled fixtures are labelled SYNTHETIC DEMO DATA; any imported file is labelled UNVERIFIED USER-SUPPLIED DATA. These labels record only how data was loaded; they do not detect or prevent real or sensitive data, so do not import it. Not a coverage, payment or clinical determination. Rule pack CS-DEMO-1 is a fictional configuration sourced only from the spec file.</span>
 </div>
 <header class="masthead">
   <div>
@@ -142,12 +142,12 @@
   <section class="sheet wide" aria-labelledby="source-heading">
     <h2 id="source-heading">1. Source batch</h2>
     <div class="controls">
-      <label>Named synthetic fixture
+      <label>Bundled synthetic fixture (labelled SYNTHETIC DEMO DATA)
         <select id="fixture-select">
           <option value="">Choose a fixture…</option>
         </select>
       </label>
-      <label>Or import a JSON file (max 1 MiB, 1,000 records)
+      <label>Or import a JSON file (max 1 MiB, 1,000 records; always labelled UNVERIFIED USER-SUPPLIED DATA)
         <input id="file-input" type="file" accept="application/json,.json">
       </label>
       <button id="run-btn" class="primary" type="button" disabled>Run validation</button>
@@ -229,11 +229,11 @@
       <button id="export-csv" type="button" disabled>Export findings CSV</button>
     </div>
     <div id="export-status" class="status" hidden role="status" aria-live="polite"></div>
-    <p class="muted">Exports carry schemaVersion, ruleVersion, rule pack provenance, the synthetic-data label, a caller-injected timestamp, the SHA-256 of the raw input text, the input snapshot, summary, findings, and your notes and decisions. CSV cells are RFC 4180 quoted with formula-leading characters neutralized.</p>
+    <p class="muted">Exports carry schemaVersion, ruleVersion, rule pack provenance, the data-provenance label (SYNTHETIC DEMO DATA for a bundled fixture, otherwise UNVERIFIED USER-SUPPLIED DATA; neither detects or prevents real or sensitive data), a caller-injected timestamp, the SHA-256 of the raw input text, the input snapshot, summary, findings, and your notes and decisions. CSV cells are RFC 4180 quoted with formula-leading characters neutralized.</p>
   </section>
 </main>
 <footer>
-  ClaimShield is a demonstration. Synthetic data only. No production-readiness or certification claim. A qualified billing specialist must validate any real payer rule before use; real PHI workflows are out of scope.
+  ClaimShield is a demonstration intended for synthetic data only; it cannot detect or block real data. No production-readiness or certification claim. A qualified billing specialist must validate any real payer rule before use; real PHI workflows are out of scope.
   <a href="../README.md">Read the README (limits and disclaimers)</a>
 </footer>
 <script type="module" src="./app.js"></script>

@@ -4,9 +4,22 @@
 import { ERROR_CODES, LIMITS, SUPPORTED_RULE_VERSION, SUPPORTED_SCHEMA_VERSION, exceedsDepth, utf8ByteLength, validate } from './schema.js';
 import { checkedAdd, sumChecked } from './integers.js';
 import { RULE_IDS, RULE_PACK, compareStrings, runRules } from './rules.js';
-import { SYNTHETIC_LABEL, deepClone, deepFreeze } from './report.js';
+import { deepClone, deepFreeze } from './report.js';
+import { bundledFixtureProvenance, registerBundledFixtureReport, unverifiedProvenance } from './provenance.js';
+import { catalog } from '../fixtures/index.js';
 
 export const COMPARISON_LABEL = 'comparison measure, not proven overpayment';
+
+/** Report output contract version. v1 (implicit, no field) always said SYNTHETIC; v2 labels by provenance. */
+export const REPORT_VERSION = 2;
+
+export const UNKNOWN_FIXTURE_KEY = 'UNKNOWN_FIXTURE_KEY';
+
+// Allowlist of bundled fixture keys -> frozen fixture data. A Map, so prototype keys such as
+// "__proto__" or "constructor" can never resolve.
+const BUNDLED_FIXTURES = new Map(catalog.map((entry) => [entry.key, entry.data]));
+
+export const BUNDLED_FIXTURE_KEYS = Object.freeze([...BUNDLED_FIXTURES.keys()]);
 
 function fail(code, path, message) {
   return { ok: false, errors: [{ code, path, message }] };
@@ -31,8 +44,30 @@ export function parseInput(text) {
   return validate(parsed);
 }
 
-/** Validated-or-not data -> {ok:true,report} | {ok:false,errors}. Report is deep-frozen. */
+/**
+ * Validated-or-not data -> {ok:true,report} | {ok:false,errors}. Report is deep-frozen.
+ * Data passed here has no trusted origin, so the report is always labelled UNVERIFIED
+ * USER-SUPPLIED DATA. Extra arguments (e.g. a self-declared origin or fixture key) are ignored,
+ * and so is byte- or deep-equality with a bundled fixture.
+ */
 export function evaluate(data) {
+  return buildReport(data, unverifiedProvenance());
+}
+
+/**
+ * Evaluate a bundled fixture chosen by allowlisted key. The data comes from fixtures/index.js,
+ * never from the caller, so this is the only path whose report is labelled SYNTHETIC DEMO DATA.
+ */
+export function evaluateBundledFixture(fixtureKey) {
+  if (typeof fixtureKey !== 'string' || !BUNDLED_FIXTURES.has(fixtureKey)) {
+    return fail(UNKNOWN_FIXTURE_KEY, '$', 'not an allowlisted bundled fixture key');
+  }
+  const result = buildReport(BUNDLED_FIXTURES.get(fixtureKey), bundledFixtureProvenance(fixtureKey));
+  if (result.ok) registerBundledFixtureReport(result.report, fixtureKey);
+  return result;
+}
+
+function buildReport(data, provenance) {
   const v = validate(data);
   if (!v.ok) return v;
   const input = deepClone(v.data);
@@ -84,10 +119,12 @@ export function evaluate(data) {
 
   const report = {
     product: 'ClaimShield',
+    reportVersion: REPORT_VERSION,
     schemaVersion: SUPPORTED_SCHEMA_VERSION,
     ruleVersion: SUPPORTED_RULE_VERSION,
     rulePack: RULE_PACK,
-    dataLabel: SYNTHETIC_LABEL,
+    dataLabel: provenance.label,
+    provenance: { ...provenance },
     input,
     summary,
     findings,
@@ -95,7 +132,7 @@ export function evaluate(data) {
   return { ok: true, report: deepFreeze(report) };
 }
 
-/** Raw text -> report result. Convenience composition of parseInput and evaluate. */
+/** Raw text -> report result. Convenience composition of parseInput and evaluate (always unverified). */
 export function analyze(text) {
   const parsed = parseInput(text);
   if (!parsed.ok) return parsed;

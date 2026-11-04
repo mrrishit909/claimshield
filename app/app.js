@@ -5,9 +5,14 @@ import {
   ExportError,
   LIMITS,
   buildExport,
+  PROVENANCE_DISCLAIMER,
+  PROVENANCE_KINDS,
+  UNVERIFIED_LABEL,
   createReviewLayer,
   evaluate,
+  evaluateBundledFixture,
   parseInput,
+  provenanceOf,
   toCsv,
   withDecision,
   withNote,
@@ -49,7 +54,9 @@ const els = {
 
 const state = {
   sourceName: '',
-  sourceKey: '', // fixture key of the current source, '' when it came from a file
+  // Allowlisted fixture key of the current source, '' when it came from a file. Only a non-empty
+  // key routes Run through evaluateBundledFixture; the file name or contents never set it.
+  sourceKey: '',
   sourceText: null,
   sourceHash: null,
   data: null, // schema-validated input (engine output of parseInput)
@@ -164,8 +171,11 @@ function rejectBatch(name, errors) {
   showErrors(`${name}: rejected before any rule ran (${errors.length} error${errors.length === 1 ? '' : 's'}).${kept}`, errors);
 }
 
-/** Returns true when the batch replaced the current source, false when it was rejected. */
-async function loadBatch(name, text) {
+/**
+ * Returns true when the batch replaced the current source, false when it was rejected.
+ * fixtureKey is passed only by the fixture picker; file imports always load with ''.
+ */
+async function loadBatch(name, text, fixtureKey = '') {
   const parsed = parseInput(text);
   if (!parsed.ok) {
     rejectBatch(name, parsed.errors);
@@ -173,6 +183,7 @@ async function loadBatch(name, text) {
   }
   resetResults();
   state.sourceName = name;
+  state.sourceKey = fixtureKey; // set before Run can be enabled
   state.sourceText = text;
   state.sourceHash = null;
   clear(els.sourceTables);
@@ -183,7 +194,8 @@ async function loadBatch(name, text) {
   const total = ['claims', 'members', 'authorizations', 'documents'].reduce((n, k) => n + parsed.data[k].length, 0);
   els.sourceMeta.textContent =
     `${name}: ${total} record${total === 1 ? '' : 's'} passed schema validation (schemaVersion ${parsed.data.schemaVersion}, ruleVersion ${parsed.data.ruleVersion}). ` +
-    `${FIXTURE_LABEL}${state.sourceHash ? ` Input SHA-256 ${state.sourceHash.slice(0, 16)}…` : ''}`;
+    `${fixtureKey ? `Source: bundled fixture "${fixtureKey}". ${FIXTURE_LABEL}` : `Source: local file. ${UNVERIFIED_LABEL}`} ` +
+    `${PROVENANCE_DISCLAIMER}${state.sourceHash ? ` Input SHA-256 ${state.sourceHash.slice(0, 16)}…` : ''}`;
   renderSource(parsed.data);
   setStatus(els.status, 'Schema accepted. Press "Run validation" to apply rule pack CS-DEMO-1.', 'ok');
   setStamp(`Loaded · ${total} records`, '');
@@ -194,8 +206,7 @@ async function loadBatch(name, text) {
 els.fixtureSelect.addEventListener('change', async () => {
   const entry = catalog.find((c) => c.key === els.fixtureSelect.value);
   if (!entry) return;
-  if (await loadBatch(entry.title, JSON.stringify(entry.data, null, 2))) {
-    state.sourceKey = entry.key;
+  if (await loadBatch(entry.title, JSON.stringify(entry.data, null, 2), entry.key)) {
     els.fileInput.value = '';
   } else {
     els.fixtureSelect.value = state.sourceKey; // the picker keeps pointing at the batch that is actually loaded
@@ -218,7 +229,6 @@ els.fileInput.addEventListener('change', async () => {
     }
   }
   if (replaced) {
-    state.sourceKey = '';
     els.fixtureSelect.value = '';
   } else {
     els.fileInput.value = '';
@@ -230,7 +240,8 @@ els.runBtn.addEventListener('click', () => {
   if (!state.data) return;
   resetResults();
   setStatus(els.status, 'Running rule pack CS-DEMO-1…', 'loading');
-  const result = evaluate(state.data);
+  // Fixture picker -> allowlisted key (data re-read from fixtures/index.js); anything else -> unverified.
+  const result = state.sourceKey ? evaluateBundledFixture(state.sourceKey) : evaluate(state.data);
   if (!result.ok) {
     setStatus(els.status, '');
     showErrors('Batch rejected during evaluation. No partial findings.', result.errors);
@@ -239,7 +250,7 @@ els.runBtn.addEventListener('click', () => {
   }
   state.report = result.report;
   els.errors.hidden = true;
-  setStatus(els.status, `Validation complete: ${result.report.summary.findingCount} finding${result.report.summary.findingCount === 1 ? '' : 's'} on ${result.report.summary.claimCount} claim${result.report.summary.claimCount === 1 ? '' : 's'}.`, 'ok');
+  setStatus(els.status, `Validation complete: ${result.report.summary.findingCount} finding${result.report.summary.findingCount === 1 ? '' : 's'} on ${result.report.summary.claimCount} claim${result.report.summary.claimCount === 1 ? '' : 's'}. ${runProvenanceText(result.report)}`, 'ok');
   renderSummary(result.report);
   renderFindings();
   els.exportJson.disabled = false;
@@ -247,6 +258,12 @@ els.runBtn.addEventListener('click', () => {
   const n = result.report.summary.findingCount;
   setStamp(n === 0 ? 'No findings' : `${n} finding${n === 1 ? '' : 's'}`, n === 0 ? 'ok' : '');
 });
+
+function runProvenanceText(report) {
+  const p = provenanceOf(report);
+  const source = p.kind === PROVENANCE_KINDS.BUNDLED_FIXTURE ? `Source: bundled fixture "${p.fixtureKey}".` : 'Source: unverified (local file).';
+  return `${source} ${p.label}`;
+}
 
 function card(label, value, red = false) {
   return el('div', { class: `card${red ? ' red' : ''}` }, [el('div', { class: 'label', text: label }), el('div', { class: 'value', text: value })]);
@@ -327,7 +344,7 @@ function openDetail(id) {
     ...dlRow('Claims', f.claimIds.join(', ')),
     ...dlRow('Message', f.message),
     ...dlRow('Evidence', JSON.stringify(f.evidence)),
-    ...dlRow('Data label', state.report.dataLabel),
+    ...dlRow('Data label', provenanceOf(state.report).label),
   );
   els.detailCited.textContent = JSON.stringify(f.cited, null, 2);
   els.noteInput.value = state.review.notes[id] ?? '';
@@ -385,7 +402,7 @@ els.exportJson.addEventListener('click', () => {
       decisions: state.review.decisions,
     });
     download(`claimshield-report-${stampName()}.json`, JSON.stringify(payload, null, 2), 'application/json');
-    setStatus(els.exportStatus, `JSON report exported (ruleVersion ${payload.ruleVersion}, ${payload.findings.length} findings, synthetic label included).`, 'ok');
+    setStatus(els.exportStatus, `JSON report exported (ruleVersion ${payload.ruleVersion}, ${payload.findings.length} findings, labelled ${payload.provenance.kind}). ${PROVENANCE_DISCLAIMER}`, 'ok');
   } catch (err) {
     setStatus(els.exportStatus, err instanceof ExportError ? `Export failed: ${err.code}: ${err.message}` : 'Export failed.', 'error');
   }
@@ -395,7 +412,7 @@ els.exportCsv.addEventListener('click', () => {
   try {
     const csv = toCsv(state.report, state.review);
     download(`claimshield-findings-${stampName()}.csv`, csv, 'text/csv');
-    setStatus(els.exportStatus, `Findings CSV exported (${state.report.findings.length} rows, formula-leading cells neutralized).`, 'ok');
+    setStatus(els.exportStatus, `Findings CSV exported (${state.report.findings.length} rows, labelled ${provenanceOf(state.report).kind}, formula-leading cells neutralized). ${PROVENANCE_DISCLAIMER}`, 'ok');
   } catch (err) {
     setStatus(els.exportStatus, err instanceof Error ? `Export failed: ${err.message}` : 'Export failed.', 'error');
   }

@@ -154,3 +154,55 @@ test('app: rejected malformed import keeps the last valid source, report and exp
   assert.match($('findings-count').textContent, /Showing 5 of 5 findings/);
   assert.equal($('export-json').disabled, false);
 });
+
+const { golden } = await import('../fixtures/index.js');
+const NO_DETECT = /do(es)? not detect or prevent real or sensitive data/;
+
+async function runAndExport() {
+  await $('run-btn').click();
+  downloads.length = 0;
+  await $('export-json').click();
+  await $('export-csv').click();
+  const [json, csv] = await Promise.all(downloads.map((b) => b.text()));
+  return { json: JSON.parse(json), csvRows: csv.trim().split('\r\n').slice(1), status: $('status').textContent, meta: $('source-meta').textContent, exportStatus: $('export-status').textContent };
+}
+
+test('app: fixture picker is SYNTHETIC; a file byte-identical to it, even named like it, is UNVERIFIED', async () => {
+  $('fixture-select').value = 'golden';
+  await $('fixture-select').fire('change');
+  const fx = await runAndExport();
+  assert.match(fx.meta, /Source: bundled fixture "golden"\. SYNTHETIC DEMO DATA/);
+  assert.match(fx.status, /Source: bundled fixture "golden"\. SYNTHETIC DEMO DATA/);
+  assert.match(fx.status, NO_DETECT);
+  assert.equal(fx.json.exportVersion, 2);
+  assert.equal(fx.json.provenance.kind, 'bundled-fixture');
+  assert.match(fx.json.dataLabel, /^SYNTHETIC DEMO DATA/);
+  assert.match(fx.exportStatus, /bundled-fixture/);
+  for (const row of fx.csvRows) assert.match(row, /"SYNTHETIC DEMO DATA[^"]*","bundled-fixture","golden"$/);
+
+  // Exactly the bytes the picker loads, under fixture-looking file names.
+  const bytes = JSON.stringify(golden, null, 2);
+  for (const name of ['golden', 'golden.json', 'Golden batch (spec literal, 5 findings)']) {
+    $('file-input').files = [{ name, size: bytes.length, text: async () => bytes }];
+    await $('file-input').fire('change');
+    assert.equal($('fixture-select').value, '', 'picker cleared once a file replaced the source');
+    const f = await runAndExport();
+    assert.match(f.meta, /Source: local file\. UNVERIFIED USER-SUPPLIED DATA/, name);
+    assert.match(f.meta, NO_DETECT, name);
+    assert.match(f.status, /Source: unverified \(local file\)\. UNVERIFIED USER-SUPPLIED DATA/, name);
+    assert.doesNotMatch(f.status + f.meta, /SYNTHETIC DEMO DATA/, name);
+    assert.equal(f.json.provenance.kind, 'unverified-user-supplied', name);
+    assert.equal(f.json.provenance.fixtureKey, null, name);
+    assert.match(f.json.dataLabel, /^UNVERIFIED USER-SUPPLIED DATA/, name);
+    assert.deepEqual(f.json.findings, fx.json.findings, 'same findings, different label');
+    assert.equal(f.csvRows.length, 5);
+    for (const row of f.csvRows) assert.match(row, /"UNVERIFIED USER-SUPPLIED DATA[^"]*","unverified-user-supplied",""$/, name);
+  }
+
+  // A rejected file after a fixture keeps the fixture's provenance (atomic reject).
+  $('fixture-select').value = 'golden';
+  await $('fixture-select').fire('change');
+  $('file-input').files = [{ name: 'golden', size: 9, text: async () => '{"claims":' }];
+  await $('file-input').fire('change');
+  assert.equal((await runAndExport()).json.provenance.kind, 'bundled-fixture');
+});

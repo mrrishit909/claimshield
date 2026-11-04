@@ -63,7 +63,8 @@ test('golden oracle: every finding carries rule version and provenance; input pr
   assert.match(report.rulePack.provenance, /CLAIMSHIELD-VERTICAL-SLICE\.md/);
   assert.match(report.rulePack.provenance, /Fictional/);
   assert.deepEqual(report.input, JSON.parse(JSON.stringify(golden)));
-  assert.match(report.dataLabel, /SYNTHETIC/);
+  // evaluate() has no trusted origin, even for the bundled fixture object itself.
+  assert.match(report.dataLabel, /^UNVERIFIED USER-SUPPLIED DATA/);
 });
 
 test('clean variant: zero findings, total 70000, 4 clean claims', () => {

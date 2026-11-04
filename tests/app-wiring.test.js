@@ -22,7 +22,7 @@ test('app: controller imports the real engine and fixtures, no innerHTML/eval/ne
   const app = await read('app/app.js');
   assert.match(app, /from '\.\.\/src\/index\.js'/);
   assert.match(app, /from '\.\.\/fixtures\/index\.js'/);
-  for (const fn of ['parseInput', 'evaluate', 'buildExport', 'toCsv', 'withNote', 'withDecision', 'filterFindings']) {
+  for (const fn of ['parseInput', 'evaluate', 'evaluateBundledFixture', 'buildExport', 'toCsv', 'withNote', 'withDecision', 'filterFindings']) {
     assert.match(app, new RegExp(`\\b${fn}\\(`), `${fn} is called`);
   }
   for (const banned of ['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'eval(', 'new Function', 'fetch(', 'XMLHttpRequest', 'document.write', 'https://', 'http://']) {
