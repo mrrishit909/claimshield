@@ -44,7 +44,12 @@ class FakeNode {
   click() {
     return this.fire('click');
   }
-  focus() {}
+  focus() {
+    globalThis.document.activeElement = this;
+  }
+  blur() {
+    if (globalThis.document.activeElement === this) globalThis.document.activeElement = globalThis.document.body;
+  }
   remove() {}
 }
 
@@ -205,4 +210,29 @@ test('app: fixture picker is SYNTHETIC; a file byte-identical to it, even named 
   $('file-input').files = [{ name: 'golden', size: 9, text: async () => '{"claims":' }];
   await $('file-input').fire('change');
   assert.equal((await runAndExport()).json.provenance.kind, 'bundled-fixture');
+});
+
+test('app: Escape and Close return focus to the finding button that opened the detail', async () => {
+  $('fixture-select').value = 'golden';
+  await $('fixture-select').fire('change');
+  await $('run-btn').click();
+  assert.match($('findings-count').textContent, /Showing 5 of 5 findings/);
+  const buttonFor = (i) => $('findings').childNodes[i].childNodes[0];
+  const idOf = (button) => button.childNodes[0].textContent;
+
+  for (const [index, dismiss] of [
+    [0, () => docListeners.fire('keydown', { key: 'Escape' })],
+    [2, () => $('detail-close').click()],
+  ]) {
+    const id = idOf(buttonFor(index));
+    await buttonFor(index).click();
+    assert.equal($('detail').hidden, false);
+    assert.equal(document.activeElement, $('detail-title'), 'opening focuses the detail title');
+    await dismiss();
+    assert.equal($('detail').hidden, true);
+    const focused = document.activeElement;
+    assert.equal(focused, buttonFor(index), 'focus is on the rerendered finding button, not the hidden title');
+    assert.equal(idOf(focused), id);
+    assert.equal(focused.attributes['aria-pressed'], 'false');
+  }
 });

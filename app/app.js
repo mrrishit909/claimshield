@@ -295,8 +295,11 @@ function renderSummary(report) {
 function currentFilter() {
   return { ruleId: els.filterRule.value, facet: els.filterFacet.value, query: els.filterQuery.value };
 }
+// Finding id -> its button in the currently rendered list (rebuilt on every render).
+const findingButtons = new Map();
 function renderFindings() {
   clear(els.findings);
+  findingButtons.clear();
   if (!state.report) {
     els.findingsCount.textContent = '';
     return;
@@ -320,6 +323,7 @@ function renderFindings() {
       el('span', { class: 'fmeta', text: `claims: ${f.claimIds.join(', ')} · reason: ${f.reason}${state.review.decisions[f.id] ? ` · decision: ${state.review.decisions[f.id]}` : ''}` }),
     ]);
     button.addEventListener('click', () => openDetail(f.id));
+    findingButtons.set(f.id, button);
     els.findings.append(el('li', { class: f.id === state.selectedId ? 'selected' : '' }, [button]));
   }
 }
@@ -355,15 +359,21 @@ function openDetail(id) {
   renderFindings();
   els.detailTitle.focus();
 }
-function closeDetail() {
+/** restoreFocus: user dismissal (Close / Escape) returns focus to the finding that opened the detail. */
+function closeDetail({ restoreFocus = false } = {}) {
+  const closedId = state.selectedId;
   state.selectedId = null;
   els.detail.hidden = true;
   els.detailEmpty.hidden = false;
   if (state.report) renderFindings();
+  if (!restoreFocus) return;
+  const trigger = closedId && findingButtons.get(closedId);
+  if (trigger) trigger.focus();
+  else if (typeof els.detailTitle.blur === 'function') els.detailTitle.blur(); // trigger filtered out: never leave focus on the hidden panel
 }
-els.detailClose.addEventListener('click', closeDetail);
+els.detailClose.addEventListener('click', () => closeDetail({ restoreFocus: true }));
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && !els.detail.hidden) closeDetail();
+  if (event.key === 'Escape' && !els.detail.hidden) closeDetail({ restoreFocus: true });
 });
 
 els.saveReview.addEventListener('click', () => {
