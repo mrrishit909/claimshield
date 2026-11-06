@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="ClaimShield: a browser-only preflight workbench that checks a SYNTHETIC claim batch against the fictional CS-DEMO-1 rule pack and links every failure to its source field. Demo only.">
+<meta name="color-scheme" content="light">
+<title>ClaimShield: synthetic claim batch preflight (demo)</title>
+<style>
+  :root {
+    --teal: #123f44;
+    --teal-2: #1b5a60;
+    --white: #ffffff;
+    --mist: #edf5f4;
+    --mist-2: #dcebe9;
+    --blue: #245fab;
+    --slate: #52646c;
+    --line: #c3d6d4;
+    --warn: #8f2f0f;
+    --warn-bg: #fbece6;
+    --sans: system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 4.5rem; }
+  body { margin: 0; background: var(--mist); color: var(--teal); font-family: var(--sans); font-size: 1.0625rem; line-height: 1.5; }
+  h1, h2, h3, p { margin: 0; }
+  a { color: var(--blue); }
+  code, .mono { font-family: var(--mono); font-size: .9em; }
+  :focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; border-radius: 2px; }
+  .on-dark :focus-visible, .on-dark:focus-visible { outline-color: var(--white); }
+  .skip { position: absolute; left: -999px; top: .5rem; background: var(--teal); color: var(--white); padding: .6rem .9rem; z-index: 20; }
+  .skip:focus { left: .5rem; }
+  .wrap { width: min(1240px, 100% - 2.5rem); margin-inline: auto; }
+
+  /* provenance strip */
+  .strip { background: var(--teal); color: var(--white); font-size: .85rem; }
+  .strip .wrap { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; padding-block: .55rem; }
+  .strip b { letter-spacing: .1em; text-transform: uppercase; font-size: .75rem; color: var(--mist-2); }
+
+  /* top rail */
+  header.rail { background: var(--white); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
+  header.rail .wrap { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 3.5rem; }
+  .brand { font-weight: 700; letter-spacing: .02em; color: var(--teal); text-decoration: none; display: inline-flex; align-items: center; gap: .6rem; }
+  .brand i { width: 1.1rem; height: 1.1rem; border: 3px solid var(--teal); border-right-color: var(--blue); display: inline-block; }
+  nav ul { list-style: none; display: flex; gap: 1.25rem; margin: 0; padding: 0; align-items: center; }
+  nav a { color: var(--slate); text-decoration: none; font-size: .95rem; padding: .5rem .1rem; }
+  nav a:hover { color: var(--teal); text-decoration: underline; text-underline-offset: 4px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: 2.9rem; padding: .6rem 1.2rem; font: inherit; font-weight: 650; text-decoration: none; border: 2px solid var(--teal); border-radius: 3px; }
+  .btn.primary { background: var(--teal); color: var(--white); }
+  .btn.primary:hover { background: var(--teal-2); }
+  .btn.ghost { background: transparent; color: var(--teal); }
+  .btn.ghost:hover { background: var(--mist-2); }
+  header .btn { min-height: 2.5rem; padding: .35rem .95rem; font-size: .95rem; }
+
+  /* hero */
+  .hero { padding-block: clamp(2rem, 5vw, 4.5rem) clamp(2.5rem, 5vw, 4rem); background: linear-gradient(180deg, var(--white) 0, var(--mist) 100%); border-bottom: 1px solid var(--line); }
+  .hero .wrap { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(1.5rem, 4vw, 3.5rem); align-items: center; }
+  .eyebrow { font-family: var(--mono); font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--slate); margin-bottom: 1rem; }
+  h1 { font-size: clamp(2.3rem, 4.6vw, 4rem); line-height: 1.04; letter-spacing: -.02em; font-weight: 750; text-wrap: balance; }
+  h1 em { font-style: normal; color: var(--blue); }
+  .lede { margin-top: 1.25rem; font-size: 1.15rem; color: var(--slate); max-width: 34rem; }
+  .cta-row { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.75rem; }
+  .fineprint { margin-top: 1.25rem; font-size: .88rem; color: var(--slate); max-width: 34rem; }
+
+  /* the station: table panel */
+  .station { background: var(--white); border: 1px solid var(--teal); box-shadow: 8px 8px 0 var(--mist-2); min-width: 0; }
+  .station > header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .35rem 1rem; align-items: center; padding: .65rem .9rem; background: var(--teal); color: var(--white); font-size: .85rem; }
+  .station > header .mono { color: var(--mist-2); }
+  .ver { display: inline-block; font-family: var(--mono); font-size: .72rem; padding: .05rem .4rem; border: 1px solid currentColor; border-radius: 2px; white-space: nowrap; }
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+  caption { text-align: left; padding: .6rem .9rem; font-size: .85rem; color: var(--slate); border-bottom: 1px solid var(--line); }
+  th, td { text-align: left; padding: .6rem .8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th { font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; color: var(--slate); background: var(--mist); border-bottom: 2px solid var(--teal); white-space: nowrap; }
+  thead th.rulecol { background: var(--mist-2); color: var(--teal); border-left: 2px solid var(--teal); }
+  td.rulecol { background: #f7fbfa; border-left: 2px solid var(--teal); }
+  tbody th { font-family: var(--mono); font-weight: 700; font-size: .92rem; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; }
+  thead th.num { text-align: right; }
+  .flag { background: var(--warn-bg); box-shadow: inset 3px 0 0 var(--warn); }
+  .flag .tag { display: inline-block; margin-left: .35rem; }
+  .tag { font-family: var(--mono); font-size: .72rem; font-weight: 700; padding: .05rem .35rem; border: 1px solid var(--warn); color: var(--warn); background: var(--white); border-radius: 2px; white-space: nowrap; }
+  .pass { color: var(--teal-2); font-size: .85rem; }
+  .chips { display: flex; flex-wrap: wrap; gap: .3rem; }
+  td:target, td.flag:target { outline: 3px solid var(--blue); outline-offset: -3px; background: #e5eefa; }
+
+  /* sections */
+  section { padding-block: clamp(2.5rem, 6vw, 5rem); }
+  .sec-head { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 1.5rem 3rem; margin-bottom: 2rem; align-items: end; }
+  h2 { font-size: clamp(1.7rem, 3vw, 2.5rem); line-height: 1.1; letter-spacing: -.015em; font-weight: 750; text-wrap: balance; }
+  .sec-head p { color: var(--slate); max-width: 40rem; }
+  .kicker { font-family: var(--mono); font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--blue); margin-bottom: .6rem; display: block; }
+
+  .readout { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border: 1px solid var(--teal); background: var(--white); margin-bottom: 2rem; }
+  .readout div { padding: .8rem 1rem; border-right: 1px solid var(--line); }
+  .readout div:last-child { border-right: 0; }
+  .readout dt { font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; color: var(--slate); }
+  .readout dd { margin: .15rem 0 0; font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .readout dd small { font-size: .75rem; font-weight: 500; color: var(--slate); display: block; line-height: 1.3; }
+
+  .findings { display: grid; gap: 0; border: 1px solid var(--teal); background: var(--white); list-style: none; margin: 0; padding: 0; }
+  .findings li { display: grid; grid-template-columns: 11rem minmax(0, 1fr) minmax(0, 18rem); gap: .5rem 1.5rem; padding: 1rem 1.1rem; border-bottom: 1px solid var(--line); }
+  .findings li:last-child { border-bottom: 0; }
+  .fid { font-family: var(--mono); font-weight: 700; color: var(--warn); overflow-wrap: anywhere; }
+  .fid small { display: block; font-weight: 400; color: var(--slate); }
+  .findings p { font-size: .98rem; }
+  .src { font-size: .88rem; color: var(--slate); }
+  .src a { font-family: var(--mono); font-size: .85rem; overflow-wrap: anywhere; }
+  .note { margin-top: 1rem; font-size: .9rem; color: var(--slate); max-width: 56rem; }
+
+  .flow { background: var(--white); border-block: 1px solid var(--line); }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); counter-reset: s; border-top: 3px solid var(--teal); }
+  .steps li { counter-increment: s; padding: 1.1rem 1.1rem 0 0; position: relative; }
+  .steps li::before { content: counter(s, decimal-leading-zero); font-family: var(--mono); font-size: .8rem; color: var(--blue); display: block; margin-bottom: .5rem; }
+  .steps h3 { font-size: 1.1rem; margin-bottom: .35rem; }
+  .steps p { font-size: .96rem; color: var(--slate); }
+
+  .limits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 3rem; margin: 0; padding: 0; list-style: none; }
+  .limits li { padding: .9rem 0 .9rem 1.6rem; border-top: 1px solid var(--line); position: relative; font-size: .98rem; }
+  .limits li::before { content: ""; position: absolute; left: 0; top: 1.3rem; width: .7rem; height: 2px; background: var(--teal); }
+
+  .cta { background: var(--teal); color: var(--white); }
+  .cta .wrap { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 2rem; align-items: center; }
+  .cta p { color: var(--mist-2); margin-top: .8rem; max-width: 36rem; }
+  .cta .btn.primary { background: var(--white); color: var(--teal); border-color: var(--white); justify-self: start; }
+  .cta .btn.primary:hover { background: var(--mist-2); }
+  footer { padding-block: 1.5rem 2.5rem; font-size: .85rem; color: var(--slate); }
+  footer p + p { margin-top: .4rem; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .hero .station tbody tr { animation: scan .7s ease-out both; }
+    .hero .station tbody tr:nth-child(2) { animation-delay: .12s; }
+    .hero .station tbody tr:nth-child(3) { animation-delay: .24s; }
+    .hero .station tbody tr:nth-child(4) { animation-delay: .36s; }
+    @keyframes scan { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .btn { transition: background-color .15s ease; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+
+  @media (max-width: 1024px) {
+    .hero .wrap, .sec-head, .cta .wrap { grid-template-columns: 1fr; }
+    .readout { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .readout div:nth-child(3) { border-right: 0; }
+    .readout div:nth-child(-n+3) { border-bottom: 1px solid var(--line); }
+    .findings li { grid-template-columns: 9rem minmax(0, 1fr); }
+    .findings li .src { grid-column: 2; }
+    .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    nav ul li.hide-t { display: none; }
+  }
+  /* phones: tables become stacked claim records */
+  @media (max-width: 640px) {
+    body { font-size: 1rem; }
+    .wrap { width: calc(100% - 2rem); }
+    nav ul li:not(.keep) { display: none; }
+    .readout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .readout div { border-right: 0; border-bottom: 1px solid var(--line); }
+    .readout div:nth-child(odd) { border-right: 1px solid var(--line); }
+    .readout div:last-child { grid-column: 1 / -1; border-right: 0; border-bottom: 0; }
+    .findings li { grid-template-columns: 1fr; }
+    .findings li .src { grid-column: auto; }
+    .steps, .limits { grid-template-columns: 1fr; }
+    .cta-row .btn { width: 100%; }
+    .station { box-shadow: 4px 4px 0 var(--mist-2); }
+    table.stack, table.stack tbody, table.stack tr, table.stack th, table.stack td { display: block; }
+    table.stack thead { position: absolute; left: -9999px; }
+    table.stack tr { border-bottom: 2px solid var(--teal); padding: .4rem 0; }
+    table.stack th[scope="row"] { border: 0; padding: .5rem .8rem .2rem; font-size: 1.05rem; }
+    table.stack td { display: grid; grid-template-columns: 7.2rem minmax(0, 1fr); gap: .6rem; border: 0; padding: .3rem .8rem; text-align: left; }
+    table.stack td.num { text-align: left; }
+    table.stack td::before { content: attr(data-label); font-size: .7rem; text-transform: uppercase; letter-spacing: .07em; color: var(--slate); padding-top: .2rem; }
+    table.stack td.rulecol { border-left: 0; background: transparent; }
+    table.stack td.flag { box-shadow: inset 3px 0 0 var(--warn); }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#batch">Skip to the batch table</a>
+
+<div class="strip" role="note" aria-label="Data provenance notice">
+  <div class="wrap">
+    <b>Synthetic demo</b>
+    <span>Every record on this page is fictional. Rule pack CS-DEMO-1 is a fictional configuration, not any payer's policy.</span>
+  </div>
+</div>
+
+<header class="rail">
+  <div class="wrap">
+    <a class="brand" href="./"><i aria-hidden="true"></i>ClaimShield</a>
+    <nav aria-label="Page sections">
+      <ul>
+        <li class="hide-t"><a href="#batch">Batch</a></li>
+        <li class="hide-t"><a href="#findings">Findings</a></li>
+        <li class="hide-t"><a href="#flow">Workflow</a></li>
+        <li class="hide-t"><a href="#limits">Limits</a></li>
+        <li class="keep"><a class="btn primary" href="app/">Open workbench</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero" aria-labelledby="hero-title" style="padding-block:clamp(2rem,5vw,4.5rem) clamp(2.5rem,5vw,4rem)">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow">Preflight workbench &middot; schema 1 &middot; rule pack CS-DEMO-1</p>
+        <h1 id="hero-title">Every failed check points to <em>the field</em> that failed it.</h1>
+        <p class="lede">Load a synthetic claim batch, run four fictional rules, and read each finding beside the exact source field and rule version that raised it. It runs in your browser and sends nothing anywhere.</p>
+        <div class="cta-row">
+          <a class="btn primary" href="app/">Open the workbench</a>
+          <a class="btn ghost" href="#batch">Read the demo batch</a>
+        </div>
+        <p class="fineprint">Findings are candidates for human review, not decisions. Nothing is blocked, denied or paid. Do not load real data: the labels record how data arrived and cannot detect it.</p>
+      </div>
+
+      <figure class="station" style="margin:0" aria-labelledby="hero-cap">
+        <header>
+          <span id="hero-cap">Golden batch &middot; SYNTHETIC DEMO DATA</span>
+          <span class="mono">rule pack <span class="ver">CS-DEMO-1</span></span>
+        </header>
+        <div class="tablewrap">
+          <table class="stack" aria-describedby="hero-cap">
+            <caption>Four fictional claims, with the fictional rules each one triggers.</caption>
+            <thead>
+              <tr>
+                <th scope="col">Claim</th>
+                <th scope="col">memberId</th>
+                <th scope="col" class="num">amountCents</th>
+                <th scope="col" class="rulecol">CS-DEMO-1 findings</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">C-1</th>
+                <td data-label="memberId">M-1</td>
+                <td class="num" data-label="amountCents">10000</td>
+                <td class="rulecol" data-label="Findings"><span class="chips"><span class="tag">CS04</span></span></td>
+              </tr>
+              <tr>
+                <th scope="row">C-2</th>
+                <td data-label="memberId">M-2</td>
+                <td class="num" data-label="amountCents">20000</td>
+                <td class="rulecol" data-label="Findings"><span class="chips"><span class="tag">CS02</span><span class="tag">CS03</span></span></td>
+              </tr>
+              <tr>
+                <th scope="row">C-3</th>
+                <td data-label="memberId">M-X</td>
+                <td class="num" data-label="amountCents">30000</td>
+                <td class="rulecol" data-label="Findings"><span class="chips"><span class="tag">CS01</span><span class="tag">CS02</span></span></td>
+              </tr>
+              <tr>
+                <th scope="row">C-4</th>
+                <td data-label="memberId">M-1</td>
+                <td class="num" data-label="amountCents">10000</td>
+                <td class="rulecol" data-label="Findings"><span class="chips"><span class="tag">CS04</span></span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </figure>
+    </div>
+  </section>
+
+  <section id="batch" aria-labelledby="batch-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <div>
+          <span class="kicker">The batch</span>
+          <h2 id="batch-title">Source fields on the left. Versioned rule results on the right.</h2>
+        </div>
+        <p>This is the bundled <code>golden</code> fixture, the spec's literal example. Flagged cells are the fields the rules cite. Select a source link in the findings below and the cell is highlighted here.</p>
+      </div>
+
+      <dl class="readout" aria-label="Batch summary, synthetic golden fixture">
+        <div><dt>Claims</dt><dd>4</dd></div>
+        <div><dt>Findings</dt><dd>5</dd></div>
+        <div><dt>Claims flagged</dt><dd>4<small>0 without a finding</small></dd></div>
+        <div><dt>Input total</dt><dd>70000<small>cents, synthetic</small></dd></div>
+        <div><dt>By rule</dt><dd style="font-size:1.05rem;line-height:1.5">CS01&nbsp;1 &middot; CS02&nbsp;2<br>CS03&nbsp;1 &middot; CS04&nbsp;1</dd></div>
+        <div><dt>Rule pack</dt><dd style="font-size:1.05rem;line-height:1.5">CS-DEMO-1<small>fictional</small></dd></div>
+      </dl>
+
+      <div class="station">
+        <header>
+          <span>Batch validation &middot; SYNTHETIC DEMO DATA</span>
+          <span class="mono">schemaVersion 1 &middot; ruleVersion <span class="ver">CS-DEMO-1</span></span>
+        </header>
+        <div class="tablewrap">
+          <table class="stack">
+            <caption>Claim register with fictional rule results. A flagged cell carries the rule id that cites it.</caption>
+            <thead>
+              <tr>
+                <th scope="col">Claim</th>
+                <th scope="col">memberId</th>
+                <th scope="col">serviceDate</th>
+                <th scope="col">serviceLabel</th>
+                <th scope="col" class="num">amountCents</th>
+                <th scope="col">authorizationRef</th>
+                <th scope="col">documentRefs</th>
+                <th scope="col" class="rulecol">CS-DEMO-1 result</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">C-1</th>
+                <td id="c1-memberId" class="flag" data-label="memberId">M-1<span class="tag">CS04</span></td>
+                <td id="c1-serviceDate" class="flag" data-label="serviceDate">2026-01-10</td>
+                <td id="c1-serviceLabel" class="flag" data-label="serviceLabel">VISIT-A</td>
+                <td id="c1-amountCents" class="flag num" data-label="amountCents">10000</td>
+                <td data-label="authorizationRef">A-1</td>
+                <td data-label="documentRefs">NOTE-C-1</td>
+                <td class="rulecol" data-label="Result"><span class="tag">CS04 duplicate candidate</span></td>
+              </tr>
+              <tr>
+                <th scope="row">C-2</th>
+                <td data-label="memberId">M-2</td>
+                <td data-label="serviceDate">2026-01-11</td>
+                <td data-label="serviceLabel">VISIT-B</td>
+                <td class="num" data-label="amountCents">20000</td>
+                <td id="c2-authorizationRef" class="flag" data-label="authorizationRef">A-1<span class="tag">CS02</span></td>
+                <td id="c2-documentRefs" class="flag" data-label="documentRefs">[ ] empty<span class="tag">CS03</span></td>
+                <td class="rulecol" data-label="Result"><span class="chips"><span class="tag">CS02 authorization</span><span class="tag">CS03 document</span></span></td>
+              </tr>
+              <tr>
+                <th scope="row">C-3</th>
+                <td id="c3-memberId" class="flag" data-label="memberId">M-X<span class="tag">CS01</span></td>
+                <td data-label="serviceDate">2026-01-12</td>
+                <td data-label="serviceLabel">VISIT-C</td>
+                <td class="num" data-label="amountCents">30000</td>
+                <td id="c3-authorizationRef" class="flag" data-label="authorizationRef">A-X<span class="tag">CS02</span></td>
+                <td data-label="documentRefs">NOTE-C-3</td>
+                <td class="rulecol" data-label="Result"><span class="chips"><span class="tag">CS01 member</span><span class="tag">CS02 authorization</span></span></td>
+              </tr>
+              <tr>
+                <th scope="row">C-4</th>
+                <td id="c4-memberId" class="flag" data-label="memberId">M-1<span class="tag">CS04</span></td>
+                <td id="c4-serviceDate" class="flag" data-label="serviceDate">2026-01-10</td>
+                <td id="c4-serviceLabel" class="flag" data-label="serviceLabel">VISIT-A</td>
+                <td id="c4-amountCents" class="flag num" data-label="amountCents">10000</td>
+                <td data-label="authorizationRef">A-1</td>
+                <td data-label="documentRefs">NOTE-C-4</td>
+                <td class="rulecol" data-label="Result"><span class="tag">CS04 duplicate candidate</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p class="note">Registers in this batch: members M-1 and M-2; authorizations A-1 (member M-1) and A-2 (member M-2); documents NOTE-C-1, NOTE-C-3 and NOTE-C-4. Amounts are integer cents in fictional units.</p>
+    </div>
+  </section>
+
+  <section id="findings" aria-labelledby="findings-title" style="padding-top:0">
+    <div class="wrap">
+      <div class="sec-head">
+        <div>
+          <span class="kicker">The findings</span>
+          <h2 id="findings-title">Five findings, each with a reason and a source.</h2>
+        </div>
+        <p>These are the five finding ids the spec's golden batch is defined to produce. The workbench shows them with the full rule text, evidence object and cited records.</p>
+      </div>
+      <ol class="findings">
+        <li>
+          <div class="fid">CS01:C-3<small>member-missing &middot; CS-DEMO-1</small></div>
+          <p>Claim C-3 references member M-X, which is not in the member register.</p>
+          <p class="src">Source field: <a href="#c3-memberId">claims C-3 &rarr; memberId</a></p>
+        </li>
+        <li>
+          <div class="fid">CS02:C-2<small>member-mismatch &middot; CS-DEMO-1</small></div>
+          <p>Claim C-2 references authorization A-1, which belongs to member M-1, not M-2.</p>
+          <p class="src">Source field: <a href="#c2-authorizationRef">claims C-2 &rarr; authorizationRef</a></p>
+        </li>
+        <li>
+          <div class="fid">CS02:C-3<small>unresolved &middot; CS-DEMO-1</small></div>
+          <p>Claim C-3 references authorization A-X, which does not resolve.</p>
+          <p class="src">Source field: <a href="#c3-authorizationRef">claims C-3 &rarr; authorizationRef</a></p>
+        </li>
+        <li>
+          <div class="fid">CS03:C-2<small>missing-ref-and-document &middot; CS-DEMO-1</small></div>
+          <p>Claim C-2 requires configured document NOTE-C-2. It is absent from documentRefs and from the document register.</p>
+          <p class="src">Source field: <a href="#c2-documentRefs">claims C-2 &rarr; documentRefs</a></p>
+        </li>
+        <li>
+          <div class="fid">CS04:C-1,C-4<small>exact-duplicate-key &middot; CS-DEMO-1</small></div>
+          <p>Claims C-1 and C-4 share the exact key (M-1, 2026-01-10, VISIT-A, 10000). A duplicate candidate for human review; nothing is deleted or blocked.</p>
+          <p class="src">Source fields: <a href="#c1-serviceLabel">C-1 key</a>, <a href="#c4-serviceLabel">C-4 key</a></p>
+        </li>
+      </ol>
+      <p class="note">Selecting a source link jumps to the flagged cell in the batch table above. The CS04 total is a comparison measure only, not proven overpayment.</p>
+    </div>
+  </section>
+
+  <section id="flow" class="flow" aria-labelledby="flow-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <div>
+          <span class="kicker">Workflow</span>
+          <h2 id="flow-title">Four steps, all in one browser tab.</h2>
+        </div>
+        <p>The workbench at <a href="app/">app/</a> is the real tool. This page only shows what it does.</p>
+      </div>
+      <ol class="steps">
+        <li><h3>Load</h3><p>Pick a bundled synthetic fixture, or import a JSON file up to 1 MiB and 1,000 records. Imports are always labelled UNVERIFIED USER-SUPPLIED DATA.</p></li>
+        <li><h3>Validate</h3><p>Strict schema first: any schema error rejects the whole batch with a bounded error list and no partial results. Then the four CS-DEMO-1 rules run.</p></li>
+        <li><h3>Review</h3><p>Filter findings by rule, facet or text. Open one to see its rule version, evidence and cited records. Record a note and decision in a separate layer.</p></li>
+        <li><h3>Export</h3><p>Download a JSON report or a findings CSV, both carrying the provenance label and rule pack version.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="limits" aria-labelledby="limits-title">
+    <div class="wrap">
+      <div class="sec-head">
+        <div>
+          <span class="kicker">Limits</span>
+          <h2 id="limits-title">What this demo is not.</h2>
+        </div>
+        <p>ClaimShield is a vertical slice of four fictional rules, built to show how a preflight review could read.</p>
+      </div>
+      <ul class="limits">
+        <li>CS-DEMO-1 is fictional. It is not an insurer or payer policy, a coding guideline, a coverage rule or a regulatory requirement.</li>
+        <li>It makes no coverage, medical necessity, coding validity or claim acceptance determination, and does not predict denials.</li>
+        <li>Labels such as SYNTHETIC DEMO DATA only record how data was loaded. They do not detect or prevent real or sensitive data. Do not import it.</li>
+        <li>Findings are candidates for human review. Nothing is blocked, deleted, denied or paid, and there is no live claim processing.</li>
+        <li>Files you supply are unverified. The app has no accounts, no storage and no network requests.</li>
+        <li>Not production ready, and no certification claim. Any real rule would need validation by a qualified billing specialist and a separate privacy and security assessment.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="cta on-dark" aria-labelledby="cta-title" style="padding-block:clamp(2.5rem,6vw,4.5rem)">
+    <div class="wrap">
+      <div>
+        <h2 id="cta-title">Run the golden batch yourself.</h2>
+        <p>Open the workbench, choose the golden fixture, and watch the five findings appear with their source records.</p>
+      </div>
+      <a class="btn primary" href="app/">Open the workbench</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>ClaimShield is a demonstration for synthetic data only. It is not a payer system, audit tool, or legal, regulatory or clinical guidance.</p>
+    <p>All figures on this page come from the bundled <code>golden</code> synthetic fixture and the fictional CS-DEMO-1 rule pack.</p>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="ClaimShield workbench: deterministic preflight of SYNTHETIC claim batches against the fictional CS-DEMO-1 rule pack. Demo only.">
+<meta name="color-scheme" content="light">
+<title>ClaimShield workbench (synthetic demo)</title>
+<style>
+  :root {
+    --paper: #f4efe4;
+    --paper-deep: #ebe4d3;
+    --ink: #1b2a4a;
+    --ink-soft: #4a5570;
+    --rule: #cfc6b4;
+    --stamp: #b3261e;
+    --stamp-ink: #8f1b15;
+    --ok: #2f6b3a;
+    --focus: #1b2a4a;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--paper-deep); }
+  body {
+    margin: 0; color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.45;
+    background: var(--paper);
+    background-image: repeating-linear-gradient(0deg, transparent 0 27px, rgba(27,42,74,0.05) 27px 28px);
+  }
+  h1, h2, h3 { font-family: var(--serif); font-weight: 600; margin: 0 0 .35rem; letter-spacing: .005em; }
+  h1 { font-size: clamp(1.6rem, 3vw, 2.25rem); }
+  h2 { font-size: 1.2rem; border-bottom: 2px solid var(--ink); padding-bottom: .2rem; margin-bottom: .6rem; }
+  h3 { font-size: 1.02rem; }
+  a { color: var(--ink); }
+  .num { font-variant-numeric: tabular-nums; text-align: right; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .skip { position: absolute; left: -999px; top: 0; background: var(--ink); color: var(--paper); padding: .5rem; }
+  .skip:focus { left: .5rem; z-index: 10; }
+
+  .banner {
+    background: var(--ink); color: var(--paper); padding: .55rem 1rem; font-size: .9rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
+  }
+  .banner strong { color: #ffd7d2; letter-spacing: .08em; text-transform: uppercase; font-size: .78rem; }
+
+  header.masthead { padding: 1.25rem 1rem .5rem; max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; gap: 1rem; align-items: flex-end; flex-wrap: wrap; }
+  .masthead p { margin: 0; color: var(--ink-soft); max-width: 62ch; }
+  .formno { font-family: var(--mono); font-size: .8rem; color: var(--ink-soft); }
+
+  .stamp {
+    display: inline-block; border: 3px double var(--stamp); color: var(--stamp); font-family: var(--serif); font-weight: 700;
+    text-transform: uppercase; letter-spacing: .12em; padding: .25rem .6rem; transform: rotate(-3deg); font-size: .8rem; background: rgba(244,239,228,.7);
+  }
+  .stamp.ok { border-color: var(--ok); color: var(--ok); }
+
+  main { max-width: 1200px; margin: 0 auto; padding: .5rem 1rem 3rem; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.25rem; }
+  section.sheet { background: #fbf8f1; border: 1px solid var(--rule); box-shadow: 0 1px 0 var(--rule), 0 6px 18px rgba(27,42,74,.06); padding: 1rem; min-width: 0; }
+  section.sheet.wide { grid-column: 1 / -1; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: .6rem; align-items: end; }
+  .controls label { display: flex; flex-direction: column; gap: .2rem; font-size: .82rem; color: var(--ink-soft); }
+  select, input[type="search"], input[type="file"], textarea, button {
+    font: inherit; color: var(--ink); background: #fff; border: 1px solid var(--ink-soft); padding: .4rem .55rem; border-radius: 2px; min-height: 2.4rem;
+  }
+  textarea { width: 100%; min-height: 5.5rem; resize: vertical; }
+  button { cursor: pointer; background: var(--paper); border: 1.5px solid var(--ink); }
+  button.primary { background: var(--ink); color: var(--paper); font-weight: 600; }
+  button.stampbtn { border: 2px solid var(--stamp); color: var(--stamp); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: .8rem; }
+  button[disabled] { opacity: .5; cursor: not-allowed; }
+  button.linklike { border: none; background: none; text-align: left; padding: .5rem .25rem; width: 100%; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .86rem; margin-top: .4rem; }
+  caption { text-align: left; font-family: var(--serif); font-weight: 600; padding: .3rem 0; }
+  th, td { border-bottom: 1px solid var(--rule); padding: .28rem .4rem; text-align: left; vertical-align: top; word-break: break-word; }
+  th { font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); border-bottom: 1.5px solid var(--ink); }
+  .tablewrap { overflow-x: auto; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .6rem; }
+  .card { border: 1px solid var(--rule); padding: .55rem .7rem; background: var(--paper); }
+  .card .label { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-soft); }
+  .card .value { font-family: var(--serif); font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+  .card.red .value { color: var(--stamp); }
+
+  .status { padding: .55rem .75rem; border-left: 4px solid var(--ink-soft); background: var(--paper); margin: .6rem 0; font-size: .9rem; }
+  .status.error { border-color: var(--stamp); color: var(--stamp-ink); }
+  .status.ok { border-color: var(--ok); }
+  .status.loading { border-color: var(--ink); }
+  .status[hidden] { display: none; }
+  ul.errors { margin: .4rem 0 0; padding-left: 1.2rem; font-family: var(--mono); font-size: .8rem; max-height: 14rem; overflow: auto; }
+
+  ol.findings { list-style: none; margin: 0; padding: 0; }
+  ol.findings li { border-bottom: 1px solid var(--rule); }
+  ol.findings li.selected { background: var(--paper-deep); }
+  .fid { font-family: var(--mono); font-size: .82rem; color: var(--stamp); font-weight: 700; }
+  .fmsg { display: block; color: var(--ink-soft); font-size: .88rem; }
+  .fmeta { font-size: .75rem; color: var(--ink-soft); }
+  .badge { display: inline-block; border: 1px solid var(--ink-soft); border-radius: 2px; padding: 0 .35rem; font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; margin-left: .3rem; }
+
+  aside.detail { border: 2px solid var(--ink); padding: 1rem; background: #fbf8f1; position: relative; }
+  aside.detail[hidden] { display: none; }
+  aside.detail .close { position: absolute; right: .75rem; top: .75rem; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: .25rem .8rem; margin: .5rem 0; font-size: .9rem; }
+  dt { color: var(--ink-soft); font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; }
+  dd { margin: 0; word-break: break-word; }
+  pre { background: var(--paper); border: 1px solid var(--rule); padding: .6rem; font-family: var(--mono); font-size: .78rem; overflow: auto; max-height: 16rem; white-space: pre-wrap; word-break: break-word; }
+  .review { border-top: 1px dashed var(--rule); margin-top: .8rem; padding-top: .8rem; }
+  .muted { color: var(--ink-soft); font-size: .85rem; }
+  footer { max-width: 1200px; margin: 0 auto; padding: 1rem; color: var(--ink-soft); font-size: .82rem; border-top: 1px solid var(--rule); }
+
+  @media (max-width: 720px) {
+    main { grid-template-columns: 1fr; }
+    section.sheet.wide { grid-column: auto; }
+    .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    dl { grid-template-columns: 1fr; }
+    .stamp { transform: none; }
+    header.masthead { flex-direction: column; align-items: flex-start; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .status, aside.detail { transition: opacity .18s ease; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#findings-heading">Skip to findings</a>
+<div class="banner" role="note" aria-label="Data provenance notice">
+  <strong>Demo · data provenance</strong>
+  <span>Bundled fixtures are labelled SYNTHETIC DEMO DATA; any imported file is labelled UNVERIFIED USER-SUPPLIED DATA. These labels record only how data was loaded; they do not detect or prevent real or sensitive data, so do not import it. Not a coverage, payment or clinical determination. Rule pack CS-DEMO-1 is a fictional configuration sourced only from the spec file.</span>
+</div>
+<header class="masthead">
+  <div>
+    <div class="formno">FORM CS-1 · SCHEMA 1 · RULE PACK CS-DEMO-1</div>
+    <h1>ClaimShield preflight workbench</h1>
+    <p>Load a synthetic batch, validate it against the fictional rule pack, review each finding with its cited records, and export a labelled report. Nothing leaves this page.</p>
+  </div>
+  <span class="stamp" id="stamp" aria-live="polite">No batch loaded</span>
+</header>
+
+<main>
+  <section class="sheet wide" aria-labelledby="source-heading">
+    <h2 id="source-heading">1. Source batch</h2>
+    <div class="controls">
+      <label>Bundled synthetic fixture (labelled SYNTHETIC DEMO DATA)
+        <select id="fixture-select">
+          <option value="">Choose a fixture…</option>
+        </select>
+      </label>
+      <label>Or import a JSON file (max 1 MiB, 1,000 records; always labelled UNVERIFIED USER-SUPPLIED DATA)
+        <input id="file-input" type="file" accept="application/json,.json">
+      </label>
+      <button id="run-btn" class="primary" type="button" disabled>Run validation</button>
+    </div>
+    <div id="status" class="status" hidden role="status" aria-live="polite"></div>
+    <div id="errors" class="status error" hidden role="alert"></div>
+    <p class="muted" id="source-meta"></p>
+    <div id="source-tables"></div>
+  </section>
+
+  <section class="sheet wide" aria-labelledby="summary-heading">
+    <h2 id="summary-heading">2. Summary</h2>
+    <div id="summary" class="cards"><p class="muted">Run validation to compute totals and counts from the report.</p></div>
+    <p class="muted" id="dup-note"></p>
+  </section>
+
+  <section class="sheet" aria-labelledby="findings-heading">
+    <h2 id="findings-heading">3. Findings</h2>
+    <div class="controls">
+      <label>Rule
+        <select id="filter-rule">
+          <option value="">All rules</option>
+          <option value="CS01">CS01 member missing</option>
+          <option value="CS02">CS02 authorization</option>
+          <option value="CS03">CS03 document</option>
+          <option value="CS04">CS04 duplicate</option>
+        </select>
+      </label>
+      <label>Facet
+        <select id="filter-facet">
+          <option value="">Any</option>
+          <option value="unknown-member">Unknown member</option>
+          <option value="authorization">Authorization issue</option>
+          <option value="missing-document">Missing document</option>
+          <option value="duplicate">Duplicate candidate</option>
+        </select>
+      </label>
+      <label>Search claim or text
+        <input id="filter-query" type="search" placeholder="C-3, mismatch…" autocomplete="off">
+      </label>
+    </div>
+    <p class="muted" id="findings-count"></p>
+    <ol id="findings" class="findings" aria-label="Findings"></ol>
+  </section>
+
+  <section class="sheet" aria-labelledby="detail-heading">
+    <h2 id="detail-heading">4. Finding detail and review</h2>
+    <p class="muted" id="detail-empty">Select a finding to see its cited input records, rule id, rule version and provenance. Press Escape to close.</p>
+    <aside id="detail" class="detail" hidden role="dialog" aria-modal="false" aria-labelledby="detail-title">
+      <button id="detail-close" class="close" type="button" aria-label="Close finding detail">Close</button>
+      <h3 id="detail-title" tabindex="-1"></h3>
+      <dl id="detail-dl"></dl>
+      <h3>Cited input records</h3>
+      <pre id="detail-cited"></pre>
+      <div class="review">
+        <h3>Reviewer note and decision (separate layer; the finding itself is never changed or removed)</h3>
+        <label for="note-input" class="muted">Note (max 2,000 characters)</label>
+        <textarea id="note-input" maxlength="2000"></textarea>
+        <div class="controls">
+          <label>Decision
+            <select id="decision-input">
+              <option value="open">open</option>
+              <option value="confirmed">confirmed</option>
+              <option value="dismissed">dismissed</option>
+              <option value="needs-follow-up">needs-follow-up</option>
+            </select>
+          </label>
+          <button id="save-review" type="button" class="stampbtn">Record review</button>
+        </div>
+        <p class="muted" id="review-status"></p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="sheet wide" aria-labelledby="export-heading">
+    <h2 id="export-heading">5. Export</h2>
+    <div class="controls">
+      <button id="export-json" type="button" disabled>Export JSON report</button>
+      <button id="export-csv" type="button" disabled>Export findings CSV</button>
+    </div>
+    <div id="export-status" class="status" hidden role="status" aria-live="polite"></div>
+    <p class="muted">Exports carry schemaVersion, ruleVersion, rule pack provenance, the data-provenance label (SYNTHETIC DEMO DATA for a bundled fixture, otherwise UNVERIFIED USER-SUPPLIED DATA; neither detects or prevents real or sensitive data), a caller-injected timestamp, the SHA-256 of the raw input text, the input snapshot, summary, findings, and your notes and decisions. CSV cells are RFC 4180 quoted with formula-leading characters neutralized.</p>
+  </section>
+</main>
+<footer>
+  ClaimShield is a demonstration intended for synthetic data only; it cannot detect or block real data. No production-readiness or certification claim. A qualified billing specialist must validate any real payer rule before use; real PHI workflows are out of scope.
+  <a href="../README.md">Read the README (limits and disclaimers)</a>
+</footer>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
